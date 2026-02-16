@@ -21,28 +21,20 @@ export const createBaseScene = (engine, canvas) => {
     updateRatio();
     window.addEventListener("resize", updateRatio);
 
-    // --- LUMIÈRES & OMBRES ---
+    // --- LUMIÈRES ---
     const hemiLight = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
     hemiLight.intensity = 0.6;
-
     const dirLight = new BABYLON.DirectionalLight("dir", new BABYLON.Vector3(-1, -2, -1), scene);
     dirLight.position = new BABYLON.Vector3(20, 40, 20);
     dirLight.intensity = 0.8;
-
     const shadowGenerator = new BABYLON.ShadowGenerator(1024, dirLight);
     shadowGenerator.useBlurExponentialShadowMap = true;
 
-    // --- FX ---
     const gl = new BABYLON.GlowLayer("glow", scene);
     gl.intensity = 0.5;
 
-    // --- SOL ---
-    const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-    const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
-    groundMat.diffuseColor = new BABYLON.Color3(0.12, 0.12, 0.18);
-    groundMat.wireframe = true; // Style rétro
-    ground.material = groundMat;
-    ground.receiveShadows = true;
+    // SUPPRESSION DU CODE DE CRÉATION DU SOL ICI
+    // (On retourne null pour ground, car il sera géré par ArenaManager)
 
-    return { scene, camera, shadowGenerator, ground, CAM_OFFSET };
+    return { scene, camera, shadowGenerator, ground: null, CAM_OFFSET };
 };

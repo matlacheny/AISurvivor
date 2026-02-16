@@ -7,7 +7,7 @@ export class Player {
         this.mesh = this._createMesh(shadowGenerator);
         this.inputMap = {};
         this._setupInputs();
-
+        this.arenaLimits = null;
         // Stats RPG
         this.stats = {
             level: 1, xp: 0, nextLevelXp: 5, kills: 0,
@@ -30,6 +30,12 @@ export class Player {
         this.inventory = { weapons: [{ id: "magic_wand", level: 1 }], passives: [] };
         this.onLevelUp = null;
     }
+
+    // Nouvelle méthode pour définir les limites
+    setLimits(limits) {
+        this.arenaLimits = limits;
+    }
+
 
     _createMesh(shadowGenerator) {
         const mesh = BABYLON.MeshBuilder.CreateCylinder("player", {diameter: 1, height: 1.8, tessellation: 16}, this.scene);
@@ -65,11 +71,26 @@ export class Player {
         if (this.inputMap["d"]) moveVector.x = 1;
 
         if (moveVector.length() > 0) {
-            // Utilise bien la stat moveSpeed du joueur
             moveVector.normalize().scaleInPlace(this.stats.moveSpeed);
             this.mesh.position.addInPlace(moveVector);
             const targetRot = Math.atan2(moveVector.x, moveVector.z);
             this.mesh.rotation.y = BABYLON.Scalar.Lerp(this.mesh.rotation.y, targetRot, 0.2);
+        }
+
+        // --- APPLIQUER LES LIMITES DE L'ARÈNE ---
+        if (this.arenaLimits) {
+            if (this.arenaLimits.minX !== null) {
+                if (this.mesh.position.x < this.arenaLimits.minX) this.mesh.position.x = this.arenaLimits.minX;
+            }
+            if (this.arenaLimits.maxX !== null) {
+                if (this.mesh.position.x > this.arenaLimits.maxX) this.mesh.position.x = this.arenaLimits.maxX;
+            }
+            if (this.arenaLimits.minZ !== null) {
+                if (this.mesh.position.z < this.arenaLimits.minZ) this.mesh.position.z = this.arenaLimits.minZ;
+            }
+            if (this.arenaLimits.maxZ !== null) {
+                if (this.mesh.position.z > this.arenaLimits.maxZ) this.mesh.position.z = this.arenaLimits.maxZ;
+            }
         }
 
         if (this.invincibilityTimer > 0) {

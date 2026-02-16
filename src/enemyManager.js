@@ -45,7 +45,7 @@ export class EnemyManager {
         this.enemies.push(enemy);
     }
 
-    // MODIFICATION PRINCIPALE ICI
+
     update(gameTime) {
         // 1. CALCUL DE LA DIFFICULTÉ
         // Au départ : intervalle de 60 frames (1 sec)
