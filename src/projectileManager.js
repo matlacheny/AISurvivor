@@ -198,10 +198,17 @@ export class ProjectileManager {
         boomMesh.position = projectile.mesh.position.clone();
         boomMesh.position.y = 0.5;
         boomMesh.material.alpha = 0.8;
-        // La taille visuelle pourrait dépendre de 'area'
+
+        // --- APPLIQUER LA TAILLE A L'EXPLOSION VISUELLE ---
+        // L'explosion doit être aussi grosse que la stat 'area' modifiée
+        // Le mesh de base fait diameter:1. Si area=10, on scale par 10 (approximatif)
+        // projectile.area contient déjà le bonus du joueur (calculé dans spawnProjectile)
+        const scale = projectile.area > 0 ? projectile.area : 1;
+        boomMesh.scaling = new BABYLON.Vector3(scale, scale, scale);
+
         this.explosions.push({ mesh: boomMesh });
 
-        // Logique de zone
+        // Logique de zone (Dégâts)
         const radiusSquared = (projectile.area / 2) * (projectile.area / 2);
         const enemies = this.enemyManager.enemies;
 
@@ -228,6 +235,7 @@ export class ProjectileManager {
 
     // --- TIR (DISPATCHER) ---
     _fireWeapon(id, stats) {
+
         if (stats.pattern === "radial") {
             this._fireRadial(id, stats);
         } else if (stats.pattern === "random_sky") {
@@ -308,18 +316,34 @@ export class ProjectileManager {
     }
 
     _spawnProjectile(master, pos, vel, stats) {
+        // Appliquer la vitesse des projectiles (Brassard)
+        const finalVelocity = vel.scale(this.player.stats.projectileSpeedMult);
+
         const p = master.createInstance("p");
         p.position = pos.clone();
-        // Si c'est straight ou radial, on s'assure qu'il est à hauteur de buste
         if (stats.pattern !== "random_sky") p.position.y = 1;
+
+        // --- APPLIQUER LA TAILLE (AREA) ---
+        // On grossit le projectile visuellement
+        // (Sauf pour 'radial' ou 'straight' fins si tu préfères, mais en général tout grossit)
+        const areaMult = this.player.stats.areaMult;
+        p.scaling = new BABYLON.Vector3(areaMult, areaMult, areaMult);
+
+        // --- APPLIQUER LA DURÉE (DURATION) ---
+        // Base de vie hardcodée (ex: 200) * Multiplicateur
+        const baseLife = 200;
+        const finalLife = baseLife * this.player.stats.durationMult;
 
         this.projectiles.push({
             mesh: p,
-            velocity: vel,
-            life: 200, // Durée de vie sécurité
+            velocity: finalVelocity,
+            life: finalLife, // Durée boostée
             damage: stats.damage,
             pierce: stats.pierce,
-            area: stats.area,
+
+            // On augmente aussi la zone d'effet logique (pour les explosions)
+            area: stats.area * areaMult,
+
             pattern: stats.pattern,
             hitList: []
         });

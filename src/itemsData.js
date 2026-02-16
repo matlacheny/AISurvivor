@@ -33,7 +33,14 @@ export const PASSIVES = {
         name: "Brassard",
         type: "passive",
         description: "Augmente la vitesse des projectiles.",
-        statBonus: { speed: 0.15 }
+        statBonus: { speed: 0.05 }
+    },
+    "wings": {
+        id: "wings",
+        name: "Ailes",
+        type: "passive",
+        description: "Le personnage se déplace 10% plus vite.",
+        statBonus: { moveSpeed: 0.03 } // +0.03 car la vitesse de base est 0.3 (donc +10%)
     },
     "spellbinder": {
         id: "spellbinder",

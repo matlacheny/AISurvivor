@@ -11,14 +11,20 @@ export class Player {
         // Stats RPG
         this.stats = {
             level: 1, xp: 0, nextLevelXp: 5, kills: 0,
-            damageMult: 1, moveSpeed: 0.3, cooldownMult: 1, critChance: 0
+            damageMult: 1,
+            cooldownMult: 1,
+            critChance: 0,
+            moveSpeed: 0.3,
+            projectileSpeedMult: 1,
+            areaMult: 1,      // Taille des zones (Candélabre)
+            durationMult: 1   // Durée de vie des tirs (Envoûteur)
         };
 
         // Santé & Combat
         this.maxHp = 100;
         this.currentHp = 100;
         this.godMode = false;
-        this.invincibilityTimer = 0; // Frames d'invulnérabilité
+        this.invincibilityTimer = 0;
 
         // Inventaire
         this.inventory = { weapons: [{ id: "magic_wand", level: 1 }], passives: [] };
@@ -41,11 +47,8 @@ export class Player {
             const key = evt.sourceEvent.key.toLowerCase();
             this.inputMap[key] = true;
 
-            // TOGGLE GOD MODE (Touche G)
             if (key === 'g') {
                 this.godMode = !this.godMode;
-                console.log("God Mode:", this.godMode ? "ON" : "OFF");
-                // Feedback visuel
                 this.mesh.material.diffuseColor = this.godMode ? new BABYLON.Color3(1, 0.8, 0) : new BABYLON.Color3(1, 1, 1);
             }
         }));
@@ -55,7 +58,6 @@ export class Player {
     }
 
     update() {
-        // Déplacement
         let moveVector = new BABYLON.Vector3(0, 0, 0);
         if (this.inputMap["z"] || this.inputMap["w"]) moveVector.z = 1;
         if (this.inputMap["s"]) moveVector.z = -1;
@@ -63,16 +65,15 @@ export class Player {
         if (this.inputMap["d"]) moveVector.x = 1;
 
         if (moveVector.length() > 0) {
+            // Utilise bien la stat moveSpeed du joueur
             moveVector.normalize().scaleInPlace(this.stats.moveSpeed);
             this.mesh.position.addInPlace(moveVector);
             const targetRot = Math.atan2(moveVector.x, moveVector.z);
             this.mesh.rotation.y = BABYLON.Scalar.Lerp(this.mesh.rotation.y, targetRot, 0.2);
         }
 
-        // Gestion Invincibilité
         if (this.invincibilityTimer > 0) {
             this.invincibilityTimer--;
-            // Clignotement rouge
             if (this.invincibilityTimer % 10 < 5) this.mesh.material.emissiveColor = new BABYLON.Color3(1, 0, 0);
             else this.mesh.material.emissiveColor = new BABYLON.Color3(0, 0, 0);
         } else {
@@ -80,19 +81,13 @@ export class Player {
         }
     }
 
-    /**
-     * Applique des dégâts au joueur
-     * @returns {boolean} true si le joueur est mort
-     */
     takeDamage(amount) {
         if (this.godMode || this.invincibilityTimer > 0) return false;
-
         this.currentHp -= amount;
-        this.invincibilityTimer = 30; // 0.5 seconde d'invincibilité (si 60 FPS)
-
+        this.invincibilityTimer = 30;
         if (this.currentHp <= 0) {
             this.currentHp = 0;
-            return true; // MORT
+            return true;
         }
         return false;
     }
@@ -107,11 +102,11 @@ export class Player {
         }
     }
 
-    // ... (Méthodes addItem et helpers d'ajout d'objets restent inchangées) ...
     addItem(itemData) {
         if (itemData.type === 'evolution') this._addEvolution(itemData);
         else this._addStandardItem(itemData);
     }
+
     _addEvolution(itemData) {
         const sourceIndex = this.inventory.weapons.findIndex(w => {
             const staticData = WEAPONS[w.id];
@@ -120,17 +115,40 @@ export class Player {
         if (sourceIndex !== -1) this.inventory.weapons.splice(sourceIndex, 1);
         this.inventory.weapons.push({ id: itemData.id, level: 1 });
     }
+
     _addStandardItem(itemData) {
         const list = itemData.type === 'weapon' ? this.inventory.weapons : this.inventory.passives;
         const existing = list.find(i => i.id === itemData.id);
         if (existing) existing.level++;
         else list.push({ id: itemData.id, level: 1 });
+
         if (itemData.type === 'passive') this._applyPassiveBonuses(itemData);
     }
+
+    // --- MODIFICATION ICI ---
     _applyPassiveBonuses(itemData) {
         if (!itemData.statBonus) return;
+
         if (itemData.statBonus.damage) this.stats.damageMult += itemData.statBonus.damage;
         if (itemData.statBonus.crit) this.stats.critChance = (this.stats.critChance || 0) + itemData.statBonus.crit;
-        if (itemData.statBonus.speed) this.stats.moveSpeed += itemData.statBonus.speed;
+
+        // CORRECTION : 'speed' (Brassard) augmente la vitesse des projectiles
+        if (itemData.statBonus.speed) this.stats.projectileSpeedMult += itemData.statBonus.speed;
+
+        // NOUVEAU : 'moveSpeed' (Ailes) augmente la vitesse du joueur
+        if (itemData.statBonus.moveSpeed) this.stats.moveSpeed += itemData.statBonus.moveSpeed;
+
+        if (itemData.statBonus.cooldown) this.stats.cooldownMult -= itemData.statBonus.cooldown;
+        // Taille de Zone (Candélabre)
+        if (itemData.statBonus.area) {
+            this.stats.areaMult += itemData.statBonus.area;
+            console.log("Area Multiplier:", this.stats.areaMult);
+        }
+
+        // Durée (Envoûteur)
+        if (itemData.statBonus.duration) {
+            this.stats.durationMult += itemData.statBonus.duration;
+            console.log("Duration Multiplier:", this.stats.durationMult);
+        }
     }
 }
