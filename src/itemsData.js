@@ -66,6 +66,16 @@ export const WEAPONS = {
         damage: 10, cooldown: 50, speed: 0.8, pierce: 1, area: 0,
         pattern: "nearest"
     },
+    "nuke": {
+        id: "nuke",
+        name: "Nuke",
+        type: "weapon",
+        description: "Détruit tout",
+        maxLevel: 5,
+        // Stats
+        damage: 999999, cooldown: 50, speed: 0.8, pierce: 1, area: 99999,
+        pattern: "nearest"
+    },
 
     // 2. HACHE (Évolution avec Candélabre)
     "axe": {

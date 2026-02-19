@@ -1,15 +1,32 @@
 import * as BABYLON from "@babylonjs/core";
+import { BOSSES } from './bossData.js';
 
 export class EnemyManager {
     constructor(scene, shadowGenerator, player) {
         this.scene = scene;
         this.player = player;
-        this.enemies = [];
-        this.masterMesh = this._createMasterMesh();
         this.shadowGenerator = shadowGenerator;
 
-        // On n'utilise plus Date.now() pour le scaling, mais le gameTime du main
+        this.enemies = [];
+        this.masterMesh = this._createMasterMesh();
+
+        // Configuration de la partie
+        this.currentArenaId = "infinite";
+        this.gameMode = "ENDLESS"; // "STORY" ou "ENDLESS"
+        this.onBossDefeated = null; // Callback pour prévenir le main.js
+
+        // Gestion des Boss
+        this.nextBossTime = 30;
+        this.bossSpawned = false;
+        this.activeBoss = null;
+        this.bossIndex = 0;
+        this.loopCount = 0; // Compte le nombre de fois qu'on a fait les 3 boss (Mode Endless)
+
         this.spawnTimer = 0;
+    }
+
+    setCurrentArena(arenaId) {
+        this.currentArenaId = arenaId;
     }
 
     _createMasterMesh() {
@@ -22,9 +39,52 @@ export class EnemyManager {
         return master;
     }
 
-    // On passe gameTime ici pour ajuster les HP
+    spawnBoss() {
+        if(this.bossSpawned) return;
+        this.bossSpawned = true;
+
+        const arenaBosses = BOSSES[this.currentArenaId] || BOSSES["infinite"];
+        const currentBossIndex = Math.min(this.bossIndex, arenaBosses.length - 1);
+        const baseBossData = arenaBosses[currentBossIndex];
+
+        console.log(`⚠️ SPAWN BOSS: ${baseBossData.name} (Loop: ${this.loopCount}) ⚠️`);
+
+        const bossMesh = this.masterMesh.clone("BOSS_" + baseBossData.name);
+        bossMesh.isVisible = true;
+
+        bossMesh.position = this.player.mesh.position.clone();
+        bossMesh.position.z += 40;
+        bossMesh.position.y = baseBossData.scale / 2;
+
+        bossMesh.scaling = new BABYLON.Vector3(baseBossData.scale, baseBossData.scale, baseBossData.scale);
+
+        const bossMat = new BABYLON.StandardMaterial("bossMat", this.scene);
+        bossMat.diffuseColor = baseBossData.color;
+        bossMat.emissiveColor = baseBossData.color.scale(0.4);
+        bossMesh.material = bossMat;
+
+        // --- SCALING ENDLESS ---
+        // Chaque boucle augmente les PV et les dégâts du boss de 100%
+        const scaleMult = 1 + (this.loopCount * 1.0);
+        const actualHp = baseBossData.hp * scaleMult;
+        const actualDamage = baseBossData.damage * scaleMult;
+
+        bossMesh.uniqueId = "BOSS_" + Date.now();
+        bossMesh.hp = actualHp;
+        bossMesh.maxHp = actualHp;
+        bossMesh.damage = actualDamage;
+        bossMesh.speed = baseBossData.speed;
+        bossMesh.isBoss = true;
+        bossMesh.name = baseBossData.name + (this.loopCount > 0 ? ` +${this.loopCount}` : "");
+        bossMesh.xpValue = baseBossData.dropXp * scaleMult;
+
+        this.shadowGenerator.addShadowCaster(bossMesh);
+        this.enemies.push(bossMesh);
+        this.activeBoss = bossMesh;
+    }
+
     spawn(gameTime) {
-        const enemy = this.masterMesh.createInstance("enemy_" + Date.now() + Math.random());
+        const enemy = this.masterMesh.createInstance("e_" + Date.now() + Math.random());
         enemy.uniqueId = Date.now() + "_" + Math.random();
 
         const angle = Math.random() * Math.PI * 2;
@@ -33,62 +93,52 @@ export class EnemyManager {
         enemy.position.z = this.player.mesh.position.z + Math.sin(angle) * radius;
         enemy.position.y = 0.6;
 
-        // --- SCALING HP ---
-        // 10 PV de base + 10 PV par minute de jeu
-        // Exemple : à 10 min, les ennemis ont 110 PV
-        const scaledHp = 10 + Math.floor(gameTime / 6);
-
+        // Les ennemis normaux continuent de scaler à l'infini grâce à gameTime
+        const scaledHp = 10 + Math.floor(gameTime / 10);
         enemy.maxHp = scaledHp;
         enemy.hp = scaledHp;
+        enemy.speed = 0.12;
+        enemy.xpValue = 10;
 
         this.shadowGenerator.addShadowCaster(enemy);
         this.enemies.push(enemy);
     }
 
-
     update(gameTime) {
-        // 1. CALCUL DE LA DIFFICULTÉ
-        // Au départ : intervalle de 60 frames (1 sec)
-        // On réduit l'intervalle de 0.2 par seconde de jeu
-        // Minimum : 8 frames (c'est très rapide !)
-        let spawnInterval = Math.max(8, 60 - (gameTime * 0.2));
-
-        // 2. TIMER D'APPARITION
-        this.spawnTimer++;
-        if (this.spawnTimer >= spawnInterval) {
-
-            // 3. TAILLE DES VAGUES (HORDES)
-            // Par défaut 1 ennemi à la fois
-            let batchSize = 1;
-
-            // Après 2 minutes (120s), on en fait pop 2 à la fois
-            if (gameTime > 120) batchSize = 2;
-            // Après 5 minutes (300s), on en fait pop 3 à la fois
-            if (gameTime > 300) batchSize = 3;
-            // Après 10 minutes, c'est l'enfer (5 à la fois)
-            if (gameTime > 600) batchSize = 5;
-
-            // On lance la boucle de spawn
-            for(let k = 0; k < batchSize; k++) {
-                this.spawn(gameTime);
-            }
-
-            this.spawnTimer = 0;
+        if (gameTime >= this.nextBossTime && !this.bossSpawned) {
+            this.spawnBoss();
+            this.nextBossTime += 30; // Le prochain boss est dans 5 minutes (300s)
         }
 
-        // Mouvement et Nettoyage
+        if (!this.bossSpawned) {
+            let spawnInterval = Math.max(8, 60 - (gameTime * 0.2));
+            this.spawnTimer++;
+            if (this.spawnTimer >= spawnInterval) {
+                let batchSize = 1;
+                if (gameTime > 120) batchSize = 2;
+                if (gameTime > 240) batchSize = 3;
+                for(let k = 0; k < batchSize; k++) this.spawn(gameTime);
+                this.spawnTimer = 0;
+            }
+        }
+
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const enemy = this.enemies[i];
             const direction = this.player.mesh.position.subtract(enemy.position).normalize();
 
-            // Les ennemis accélèrent aussi un tout petit peu avec le temps (max +50% vitesse)
-            const speedBonus = Math.min(0.06, gameTime * 0.0001);
-            const speed = 0.12 + speedBonus;
+            let currentSpeed = 0;
+            if (enemy.isBoss) {
+                currentSpeed = enemy.speed;
+                enemy.lookAt(this.player.mesh.position);
+            } else {
+                const speedBonus = Math.min(0.06, gameTime * 0.0001);
+                currentSpeed = 0.12 + speedBonus;
+                enemy.rotation.y += 0.05;
+            }
 
-            enemy.position.addInPlace(direction.scale(speed));
-            enemy.rotation.y += 0.05;
+            enemy.position.addInPlace(direction.scale(currentSpeed));
 
-            if (BABYLON.Vector3.Distance(this.player.mesh.position, enemy.position) > 60) {
+            if (!enemy.isBoss && BABYLON.Vector3.Distance(this.player.mesh.position, enemy.position) > 70) {
                 enemy.dispose();
                 this.enemies.splice(i, 1);
             }
@@ -100,13 +150,39 @@ export class EnemyManager {
         if(!enemy) return false;
 
         enemy.hp -= amount;
-        enemy.scaling = new BABYLON.Vector3(1.4, 1.4, 1.4);
-        setTimeout(() => { if(enemy) enemy.scaling = new BABYLON.Vector3(1, 1, 1); }, 100);
+
+        if (enemy.isBoss) {
+            if (enemy.material) {
+                const oldColor = enemy.material.emissiveColor.clone();
+                enemy.material.emissiveColor = new BABYLON.Color3(1, 1, 1);
+                setTimeout(() => { if(enemy && enemy.material) enemy.material.emissiveColor = oldColor; }, 50);
+            }
+        } else {
+            enemy.scaling = new BABYLON.Vector3(1.5, 1.5, 1.5);
+            setTimeout(() => { if(enemy) enemy.scaling = new BABYLON.Vector3(1, 1, 1); }, 100);
+        }
 
         if (enemy.hp <= 0) {
+            if (enemy.isBoss) {
+                const defeatedIndex = this.bossIndex; // On sauvegarde l'index du boss tué
+                this.activeBoss = null;
+                this.bossSpawned = false;
+                this.bossIndex++;
+
+                // Si on a tué le 3ème boss en Endless, on boucle !
+                if (this.gameMode === "ENDLESS" && this.bossIndex > 2) {
+                    this.bossIndex = 0;
+                    this.loopCount++;
+                }
+
+                // On prévient le main.js
+                if (this.onBossDefeated) this.onBossDefeated(defeatedIndex);
+            }
+
             this.removeEnemy(index);
             return true;
         }
+
         return false;
     }
 

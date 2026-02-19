@@ -30,14 +30,19 @@ const createMenus = () => {
     const mainDiv = document.createElement("div");
     mainDiv.id = "main-menu";
     mainDiv.innerHTML = `
-        <h1>AI Survivor</h1>
+        <h1 style="text-align:center; font-size: 60px; color: red; text-shadow: 0 0 10px black; font-family: monospace;">AI SURVIVOR 3D</h1>
         <button id="btn-story" class="menu-btn">HISTOIRE</button>
         <button id="btn-endless" class="menu-btn">ENDLESS</button>
         <button id="btn-leaderboard" class="menu-btn" style="opacity:0.5; cursor:not-allowed;">LEADERBOARD (WIP)</button>
     `;
-    mainDiv.style.display = "flex"; // Visible par défaut
+    // Styles de base pour le conteneur
+    Object.assign(mainDiv.style, {
+        position: "absolute", top: "0", left: "0", width: "100%", height: "100%",
+        background: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column",
+        justifyContent: "center", alignItems: "center", zIndex: "100"
+    });
 
-    // B. MENU SÉLECTION ARÈNE (Caché)
+    // B. MENU SÉLECTION ARÈNE (Caché par défaut)
     const arenaDiv = document.createElement("div");
     arenaDiv.id = "arena-menu";
     Object.assign(arenaDiv.style, {
@@ -54,8 +59,8 @@ const createMenus = () => {
             <div class="arena-card" data-id="${key}" style="
                 border:1px solid #555; padding:20px; margin:10px; width:300px; cursor:pointer; 
                 text-align:center; transition:0.3s; background:#222; color:white; border-radius:8px;">
-                <h2 style="color:#00ccff; margin-bottom:10px;">${a.name}</h2>
-                <p style="font-size:14px; color:#aaa;">${a.description}</p>
+                <h2 style="color:#00ccff; margin-bottom:10px; font-family:monospace;">${a.name}</h2>
+                <p style="font-size:14px; color:#aaa; font-family:sans-serif;">${a.description}</p>
             </div>`;
     });
 
@@ -89,73 +94,94 @@ let gameState = "MENU"; // MENU, CINEMATIC, GAME, GAMEOVER
 let isGamePaused = false;
 let gameTime = 0;
 
-// --- 5. LOGIQUE DE DÉMARRAGE DU GAMEPLAY ---
-const startGameplay = (arenaId = "infinite") => {
-    console.log("Démarrage du jeu - Arène :", arenaId);
+// --- 5. LOGIQUE DE DÉMARRAGE ET TRANSITION DU GAMEPLAY ---
+// Plus besoin des paramètres existingPlayer et existingUI !
+const startGameplay = (arenaId = "infinite", mode = "ENDLESS") => {
+    console.log(`Démarrage [${mode}] - Arène : ${arenaId}`);
 
-    // 1. Setup de l'arène (Sol + Murs)
+    // --- 1. NETTOYAGE DE L'ANCIENNE PARTIE ---
+    // Si une partie était déjà en cours, on supprime tout proprement
+    if (player) player.mesh.dispose();
+    if (ui) {
+        ui.hud.remove();
+        ui.bossContainer.remove();
+        ui.gameOverScreen.remove();
+    }
+    if (enemyManager) enemyManager.enemies.forEach(e => e.dispose());
+    if (projectileManager) projectileManager.projectiles.forEach(p => p.mesh.dispose());
+    if (xpManager) xpManager.gems.forEach(g => g.dispose());
+
+    // --- 2. SETUP DE L'ARÈNE ---
     const arenaConfig = arenaManager.setupArena(arenaId);
 
-    // 2. Instanciation des Modules
+    // --- 3. INSTANCIATION DES MODULES (Tout est neuf !) ---
     ui = new UIManager();
     player = new Player(scene, shadowGenerator);
-
-    // On applique les limites de l'arène au joueur
     player.setLimits(arenaConfig.limits);
 
     enemyManager = new EnemyManager(scene, shadowGenerator, player);
+    enemyManager.setCurrentArena(arenaId);
+    enemyManager.gameMode = mode;
+
     xpManager = new XpManager(scene, player);
     projectileManager = new ProjectileManager(scene, player, enemyManager, xpManager);
     upgradeManager = new UpgradeManager(scene, ENGINE, player, projectileManager);
 
-    // 3. Connexions Événements
     player.onLevelUp = () => upgradeManager.triggerLevelUp();
 
-    // 4. Reset États
+    // --- 4. LOGIQUE DE PROGRESSION (HISTOIRE) ---
+    enemyManager.onBossDefeated = (defeatedIndex) => {
+        if (mode === "STORY" && defeatedIndex === 2) {
+            console.log("3ème Boss Vaincu ! Transition vers le niveau suivant...");
+
+            // On relance un niveau entièrement neuf
+            if (arenaId === "infinite") {
+                startGameplay("corridor", "STORY");
+            } else if (arenaId === "corridor") {
+                startGameplay("coliseum", "STORY");
+            } else if (arenaId === "coliseum") {
+                // Fin du jeu : Victoire !
+                gameState = "GAMEOVER";
+                ui.showVictory(player.stats.kills, gameTime);
+            }
+        }
+    };
+
+    // --- 5. RESET DES ÉTATS ---
     gameTime = 0;
     gameState = "GAME";
     isGamePaused = false;
-
-    // Focus pour les contrôles clavier
     CANVAS.focus();
 };
 
 // --- 6. GESTION DES BOUTONS DU MENU ---
 
-// A. Mode Histoire
 document.getElementById("btn-story").onclick = () => {
     menus.main.style.display = "none";
     gameState = "CINEMATIC";
-
-    // Lance la cinématique -> puis le jeu (Arène par défaut)
     cinematicManager.play(() => {
-        startGameplay("infinite");
+        // En mode histoire, on force l'arène 'infinite' et le mode 'STORY'
+        startGameplay("infinite", "STORY");
     });
 };
 
-// B. Mode Endless (Ouvre sélection arène)
 document.getElementById("btn-endless").onclick = () => {
     menus.main.style.display = "none";
     menus.arena.style.display = "flex";
 };
 
-// C. Retour au menu principal
 document.getElementById("btn-back").onclick = () => {
     menus.arena.style.display = "none";
     menus.main.style.display = "flex";
 };
 
-// D. Clic sur une carte d'arène
 document.querySelectorAll(".arena-card").forEach(card => {
     card.onclick = () => {
         const id = card.getAttribute("data-id");
         menus.arena.style.display = "none";
-        // Lancement direct du jeu
-        startGameplay(id);
+        // En mode Endless, on lance avec l'arène choisie et le mode 'ENDLESS'
+        startGameplay(id, "ENDLESS");
     };
-    // Effet Hover JS
-    card.onmouseenter = () => card.style.backgroundColor = "#444";
-    card.onmouseleave = () => card.style.backgroundColor = "#222";
 });
 
 // --- 7. INPUT PAUSE (Touche P) ---
@@ -184,16 +210,17 @@ scene.onBeforeRenderObservable.add(() => {
         // Pause ou Menu LevelUp ouvert ? On arrête tout.
         if (upgradeManager.isPaused || isGamePaused) return;
 
-        // Mise à jour du temps (approx 60 FPS)
-        gameTime += 0.0166;
+        if (!enemyManager.activeBoss) {
+            gameTime += 0.0166;
+        }
 
         // Mises à jour Logiques
         player.update();
-        enemyManager.update(gameTime); // Difficulté augmente avec le temps
+        enemyManager.update(gameTime); // Gère les vagues et le spawn du Boss à 5 min
         projectileManager.update();
         xpManager.update();
 
-        // Mise à jour du Sol (Arena Manager)
+        // Mise à jour du Sol (Arena Manager gère le mouvement du sol infini ou fixe)
         arenaManager.update(player.mesh.position);
 
         // Caméra suit le joueur
@@ -203,7 +230,7 @@ scene.onBeforeRenderObservable.add(() => {
         camera.setTarget(player.mesh.position);
 
         // Gestion Mort du Joueur (Contact Ennemi)
-        // On vérifie quelques ennemis proches pour optimiser
+        // On vérifie les collisions (optimisation simple : check distance)
         for (let i = 0; i < enemyManager.enemies.length; i++) {
             const enemy = enemyManager.enemies[i];
             // Distance au carré < 1.5 (contact)
@@ -219,7 +246,8 @@ scene.onBeforeRenderObservable.add(() => {
         }
 
         // Mise à jour HUD
-        ui.update(player.stats, gameTime, player.currentHp, player.maxHp);
+        // IMPORTANT : On passe 'enemyManager.activeBoss' pour afficher la barre de boss si nécessaire
+        ui.update(player.stats, gameTime, player.currentHp, player.maxHp, enemyManager.activeBoss);
     }
 });
 
