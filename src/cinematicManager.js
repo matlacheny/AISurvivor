@@ -1,7 +1,7 @@
 // --- CONFIGURATION DE L'HISTOIRE ---
 const STORY_LINES = [
     "En l'an 20XX, les ténèbres ont englouti le monde.",
-    "Les légions vampiriques ont détruit toute civilisation.",
+    "Des legions de robots ont détruit toute civilisation.",
     "Vous êtes le dernier survivant...",
     "Votre seul but : SURVIVRE."
 ];
