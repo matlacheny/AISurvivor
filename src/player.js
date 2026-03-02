@@ -3,13 +3,13 @@ import { WEAPONS } from './data/itemsData.js';
 import { CHARACTERS } from './data/charactersData.js';
 
 export class Player {
-    constructor(scene, shadowGenerator, characterId = "paladin") {
+    constructor(scene, shadowGenerator,assetManager, characterId = "paladin") {
         this.scene = scene;
 
         // 1. Chargement des données du personnage
         this.characterData = CHARACTERS[characterId] || CHARACTERS["paladin"];
 
-        this.mesh = this._createMesh(shadowGenerator);
+        this.mesh = this._createMesh(shadowGenerator, assetManager); // Passe-le ici
         this.inputMap = {};
         this._setupInputs();
 
@@ -41,12 +41,15 @@ export class Player {
         this._setupUniquePassive();
     }
 
-    _createMesh(shadowGenerator) {
-        const mesh = BABYLON.MeshBuilder.CreateCylinder("player", {diameter: 1, height: 1.8, tessellation: 16}, this.scene);
+    _createMesh(shadowGenerator, assetManager) {
+        // AU LIEU DE MeshBuilder... on clone l'asset maître !
+        const mesh = assetManager.meshes.player.clone("player");
+        mesh.isVisible = true;
+
         const mat = new BABYLON.StandardMaterial("playerMat", this.scene);
-        // On applique la couleur du perso pour le différencier visuellement
         mat.diffuseColor = BABYLON.Color3.FromHexString(this.characterData.color);
         mesh.material = mat;
+
         mesh.position.y = 0.9;
         shadowGenerator.addShadowCaster(mesh);
         return mesh;

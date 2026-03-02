@@ -2,13 +2,13 @@ import * as BABYLON from "@babylonjs/core";
 import { BOSSES } from '../data/bossData.js';
 
 export class EnemyManager {
-    constructor(scene, shadowGenerator, player) {
+    constructor(scene, shadowGenerator, player,assetManager) {
         this.scene = scene;
         this.player = player;
         this.shadowGenerator = shadowGenerator;
 
         this.enemies = [];
-        this.masterMesh = this._createMasterMesh();
+        this.masterMesh = assetManager.meshes.enemy;
 
         // Configuration de la partie
         this.currentArenaId = "infinite";

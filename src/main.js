@@ -12,6 +12,7 @@ import { UpgradeManager } from './manager/upgradeManager.js';
 import { CinematicManager } from './manager/cinematicManager.js';
 import { ArenaManager, ARENAS } from './manager/arenaManager.js';
 import { CHARACTERS } from './data/charactersData.js'; // L'import des personnages
+import {AssetManager} from "./manager/assetManager.js";
 
 // --- 1. CONFIGURATION MOTEUR & CANVAS ---
 const CANVAS = document.createElement("canvas");
@@ -147,6 +148,7 @@ updateCharacterDisplay();
 
 // --- 4. INITIALISATION SCÈNE DE BASE ---
 const { scene, camera, shadowGenerator, CAM_OFFSET } = createBaseScene(ENGINE, CANVAS);
+const assetManager = new AssetManager(scene);
 
 let player, enemyManager, xpManager, projectileManager, upgradeManager, ui;
 let arenaManager = new ArenaManager(scene);
@@ -160,6 +162,8 @@ let gameTime = 0;
 // On s'assure de bien récupérer le charId
 const startGameplay = (arenaId = "infinite", mode = "ENDLESS", charId = "paladin") => {
     console.log(`Démarrage [${mode}] - Arène : ${arenaId} - Perso : ${charId}`);
+    player = new Player(scene, shadowGenerator, assetManager, charId);
+    enemyManager = new EnemyManager(scene, shadowGenerator, player, assetManager);
 
     // Nettoyage
     if (player) player.mesh.dispose();
@@ -202,6 +206,14 @@ const startGameplay = (arenaId = "infinite", mode = "ENDLESS", charId = "paladin
     isGamePaused = false;
     CANVAS.focus();
 };
+
+// IMPORTANT : On charge les assets en fond dès le lancement du site !
+// (Pendant que le joueur regarde le menu)
+assetManager.loadAll().then(() => {
+    // Tu pourrais même désactiver les boutons "Histoire" / "Endless"
+    // jusqu'à ce que ce bloc .then() soit déclenché pour éviter les bugs.
+    console.log("Le jeu est prêt à être lancé !");
+});
 
 // --- 6. GESTION DES BOUTONS DU MENU ---
 
