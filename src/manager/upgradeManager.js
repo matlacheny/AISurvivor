@@ -1,4 +1,4 @@
-import { WEAPONS, PASSIVES, EVOLUTIONS } from './itemsData.js';
+import { WEAPONS, PASSIVES, EVOLUTIONS } from '../data/itemsData.js';
 
 export class UpgradeManager {
     constructor(scene, engine, player, projectileManager) {

@@ -1,5 +1,5 @@
 import * as BABYLON from "@babylonjs/core";
-import { BOSSES } from './bossData.js';
+import { BOSSES } from '../data/bossData.js';
 
 export class EnemyManager {
     constructor(scene, shadowGenerator, player) {
@@ -105,43 +105,73 @@ export class EnemyManager {
     }
 
     update(gameTime) {
+        this._handleSpawns(gameTime);
+        this._updateEnemies(gameTime);
+    }
+
+    // --- NOUVELLES SOUS-MÉTHODES ---
+
+    _handleSpawns(gameTime) {
+        // 1. Apparition du Boss
         if (gameTime >= this.nextBossTime && !this.bossSpawned) {
             this.spawnBoss();
-            this.nextBossTime += 30; // Le prochain boss est dans 5 minutes (300s)
+            this.nextBossTime += 30; // Prévu pour le boss suivant
         }
 
+        // 2. Apparition des ennemis normaux (uniquement si le boss n'est pas là)
         if (!this.bossSpawned) {
-            let spawnInterval = Math.max(8, 60 - (gameTime * 0.2));
-            this.spawnTimer++;
-            if (this.spawnTimer >= spawnInterval) {
-                let batchSize = 1;
-                if (gameTime > 120) batchSize = 2;
-                if (gameTime > 240) batchSize = 3;
-                for(let k = 0; k < batchSize; k++) this.spawn(gameTime);
-                this.spawnTimer = 0;
-            }
+            this._spawnNormalEnemies(gameTime);
         }
+    }
 
+    _spawnNormalEnemies(gameTime) {
+        let spawnInterval = Math.max(8, 60 - (gameTime * 0.2));
+        this.spawnTimer++;
+
+        if (this.spawnTimer >= spawnInterval) {
+            let batchSize = 1;
+            if (gameTime > 120) batchSize = 2;
+            if (gameTime > 240) batchSize = 3;
+
+            for (let k = 0; k < batchSize; k++) {
+                this.spawn(gameTime);
+            }
+            this.spawnTimer = 0;
+        }
+    }
+
+    _updateEnemies(gameTime) {
+        // On parcourt à l'envers car on risque de supprimer des éléments (splice)
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const enemy = this.enemies[i];
+
+            // Calcul de la direction
             const direction = this.player.mesh.position.subtract(enemy.position).normalize();
 
-            let currentSpeed = 0;
             if (enemy.isBoss) {
-                currentSpeed = enemy.speed;
-                enemy.lookAt(this.player.mesh.position);
+                this._moveBoss(enemy, direction);
             } else {
-                const speedBonus = Math.min(0.06, gameTime * 0.0001);
-                currentSpeed = 0.12 + speedBonus;
-                enemy.rotation.y += 0.05;
+                this._moveNormalEnemy(enemy, direction, gameTime, i);
             }
+        }
+    }
 
-            enemy.position.addInPlace(direction.scale(currentSpeed));
+    _moveBoss(boss, direction) {
+        boss.lookAt(this.player.mesh.position);
+        boss.position.addInPlace(direction.scale(boss.speed));
+    }
 
-            if (!enemy.isBoss && BABYLON.Vector3.Distance(this.player.mesh.position, enemy.position) > 70) {
-                enemy.dispose();
-                this.enemies.splice(i, 1);
-            }
+    _moveNormalEnemy(enemy, direction, gameTime, index) {
+        const speedBonus = Math.min(0.06, gameTime * 0.0001);
+        const currentSpeed = 0.12 + speedBonus;
+
+        enemy.rotation.y += 0.05;
+        enemy.position.addInPlace(direction.scale(currentSpeed));
+
+        // Despawn si trop loin
+        if (BABYLON.Vector3.Distance(this.player.mesh.position, enemy.position) > 70) {
+            enemy.dispose();
+            this.enemies.splice(index, 1);
         }
     }
 
