@@ -160,12 +160,11 @@ let gameTime = 0;
 
 // --- 5. LOGIQUE DE DÉMARRAGE DU GAMEPLAY ---
 // On s'assure de bien récupérer le charId
+// --- 5. LOGIQUE DE DÉMARRAGE DU GAMEPLAY ---
 const startGameplay = (arenaId = "infinite", mode = "ENDLESS", charId = "paladin") => {
     console.log(`Démarrage [${mode}] - Arène : ${arenaId} - Perso : ${charId}`);
-    player = new Player(scene, shadowGenerator, assetManager, charId);
-    enemyManager = new EnemyManager(scene, shadowGenerator, player, assetManager);
 
-    // Nettoyage
+    // 1. Nettoyage de la partie PRÉCÉDENTE (On supprime UNIQUEMENT si ça existe déjà)
     if (player) player.mesh.dispose();
     if (ui) {
         ui.hud.remove();
@@ -176,14 +175,18 @@ const startGameplay = (arenaId = "infinite", mode = "ENDLESS", charId = "paladin
     if (projectileManager) projectileManager.projectiles.forEach(p => p.mesh.dispose());
     if (xpManager) xpManager.gems.forEach(g => g.dispose());
 
+    // 2. Préparation de l'arène
     const arenaConfig = arenaManager.setupArena(arenaId);
 
-    // Instanciation
+    // 3. Instanciation des nouveaux éléments
     ui = new UIManager();
-    player = new Player(scene, shadowGenerator, charId); // <-- Le personnage est transmis ici !
+
+    // CORRECTION ICI : On passe bien l'assetManager en 3ème position
+    player = new Player(scene, shadowGenerator, assetManager, charId);
     player.setLimits(arenaConfig.limits);
 
-    enemyManager = new EnemyManager(scene, shadowGenerator, player);
+    // CORRECTION ICI : On passe bien l'assetManager en 4ème position
+    enemyManager = new EnemyManager(scene, shadowGenerator, player, assetManager);
     enemyManager.setCurrentArena(arenaId);
     enemyManager.gameMode = mode;
 
