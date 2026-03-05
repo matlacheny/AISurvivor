@@ -242,18 +242,22 @@ document.getElementById("btn-back").onclick = () => {
 
 document.querySelectorAll(".arena-card").forEach(card => {
     card.onclick = () => {
-        const arenaId = card.getAttribute("data-id");
+        // Utilisation de .dataset.id au lieu de getAttribute("data-id")
+        const arenaId = card.dataset.id;
+
         menus.arena.style.display = "none";
+
         // On récupère la clé du perso actuellement sélectionné
         const selectedChar = charKeys[currentCharIndex];
         startGameplay(arenaId, "ENDLESS", selectedChar);
     };
+
     card.onmouseenter = () => card.style.backgroundColor = "#444";
     card.onmouseleave = () => card.style.backgroundColor = "#222";
 });
 
 // --- 7. INPUT PAUSE ---
-window.addEventListener("keydown", (ev) => {
+globalThis.addEventListener("keydown", (ev) => {
     if (gameState === "GAME" && ev.key.toLowerCase() === "p" && !upgradeManager.isPaused) {
         isGamePaused = !isGamePaused;
         document.title = isGamePaused ? "PAUSED - Vampire Survivor" : "Vampire Survivor 3D";
@@ -261,45 +265,71 @@ window.addEventListener("keydown", (ev) => {
 });
 
 // --- 8. BOUCLE PRINCIPALE ---
+// --- FONCTIONS AUXILIAIRES DE MISE À JOUR ---
+
+const updateMenuCamera = () => {
+    const alpha = Date.now() * 0.0002;
+    camera.position.x = 60 * Math.cos(alpha);
+    camera.position.z = 60 * Math.sin(alpha);
+    camera.setTarget(BABYLON.Vector3.Zero());
+};
+
+const checkPlayerCollisions = () => {
+    // La boucle for...of extrait directement chaque 'enemy' du tableau
+    for (const enemy of enemyManager.enemies) {
+        if (BABYLON.Vector3.DistanceSquared(player.mesh.position, enemy.position) < 1.5) {
+            player.takeDamage(10);
+            break; // On sort de la boucle : un seul contact par frame suffit
+        }
+    }
+};
+
+const handleGameOver = () => {
+    gameState = "GAMEOVER";
+    ui.showGameOver(player.stats.kills, gameTime);
+};
+
+const updateGameplay = () => {
+    if (upgradeManager.isPaused || isGamePaused) return;
+
+    if (!enemyManager.activeBoss) gameTime += 0.0166;
+
+    // 1. Mise à jour des entités
+    player.update(enemyManager);
+    enemyManager.update(gameTime);
+    projectileManager.update();
+    xpManager.update();
+    arenaManager.update(player.mesh.position);
+
+    // 2. Mise à jour de la caméra
+    camera.position.x = player.mesh.position.x + CAM_OFFSET.x;
+    camera.position.y = player.mesh.position.y + CAM_OFFSET.y;
+    camera.position.z = player.mesh.position.z + CAM_OFFSET.z;
+    camera.setTarget(player.mesh.position);
+
+    // 3. Gestion des collisions au corps-à-corps
+    checkPlayerCollisions();
+
+    // 4. Vérification de mort globale (corps-à-corps + tirs à distance)
+    if (player.currentHp <= 0) {
+        handleGameOver();
+        return; // Stoppe l'update de l'UI pour cette frame
+    }
+
+    // 5. Mise à jour de l'UI si on est toujours en vie
+    ui.update(player.stats, gameTime, player.currentHp, player.maxHp, enemyManager.activeBoss);
+};
+
+
+// --- BOUCLE PRINCIPALE (RENDER LOOP) ---
 scene.onBeforeRenderObservable.add(() => {
     if (gameState === "MENU" || gameState === "CINEMATIC") {
-        const alpha = Date.now() * 0.0002;
-        camera.position.x = 60 * Math.cos(alpha);
-        camera.position.z = 60 * Math.sin(alpha);
-        camera.setTarget(BABYLON.Vector3.Zero());
+        updateMenuCamera();
         return;
     }
 
     if (gameState === "GAME") {
-        if (upgradeManager.isPaused || isGamePaused) return;
-
-        if (!enemyManager.activeBoss) gameTime += 0.0166;
-
-        player.update(enemyManager);
-        enemyManager.update(gameTime);
-        projectileManager.update();
-        xpManager.update();
-
-        arenaManager.update(player.mesh.position);
-
-        camera.position.x = player.mesh.position.x + CAM_OFFSET.x;
-        camera.position.y = player.mesh.position.y + CAM_OFFSET.y;
-        camera.position.z = player.mesh.position.z + CAM_OFFSET.z;
-        camera.setTarget(player.mesh.position);
-
-        for (let i = 0; i < enemyManager.enemies.length; i++) {
-            const enemy = enemyManager.enemies[i];
-            if (BABYLON.Vector3.DistanceSquared(player.mesh.position, enemy.position) < 1.5) {
-                const isDead = player.takeDamage(10);
-                if (isDead) {
-                    gameState = "GAMEOVER";
-                    ui.showGameOver(player.stats.kills, gameTime);
-                    break;
-                }
-            }
-        }
-
-        ui.update(player.stats, gameTime, player.currentHp, player.maxHp, enemyManager.activeBoss);
+        updateGameplay();
     }
 });
 

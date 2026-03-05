@@ -1,42 +1,40 @@
 import * as BABYLON from "@babylonjs/core";
 import { BOSSES } from '../data/bossData.js';
+import { ENEMY_TYPES } from '../data/enemyData.js';
 
 export class EnemyManager {
-    constructor(scene, shadowGenerator, player,assetManager) {
+    constructor(scene, shadowGenerator, player, assetManager) {
         this.scene = scene;
         this.player = player;
         this.shadowGenerator = shadowGenerator;
+        this.assetManager = assetManager; // On le stocke pour pouvoir piocher dedans
 
         this.enemies = [];
-        this.masterMesh = assetManager.meshes.enemy;
+        this.enemyProjectiles = []; // Nouvelle liste pour les tirs ennemis
 
-        // Configuration de la partie
         this.currentArenaId = "infinite";
-        this.gameMode = "ENDLESS"; // "STORY" ou "ENDLESS"
-        this.onBossDefeated = null; // Callback pour prévenir le main.js
+        this.gameMode = "ENDLESS";
+        this.onBossDefeated = null;
 
-        // Gestion des Boss
-        this.nextBossTime = 30;
+        this.nextBossTime = 300;
         this.bossSpawned = false;
         this.activeBoss = null;
         this.bossIndex = 0;
-        this.loopCount = 0; // Compte le nombre de fois qu'on a fait les 3 boss (Mode Endless)
+        this.loopCount = 0;
 
         this.spawnTimer = 0;
     }
 
-    setCurrentArena(arenaId) {
-        this.currentArenaId = arenaId;
-    }
+    setCurrentArena(arenaId) { this.currentArenaId = arenaId; }
 
-    _createMasterMesh() {
-        const master = BABYLON.MeshBuilder.CreateBox("enemyMaster", {size: 1.2}, this.scene);
-        const mat = new BABYLON.StandardMaterial("enemyMat", this.scene);
-        mat.diffuseColor = new BABYLON.Color3(1, 0.2, 0.2);
-        mat.emissiveColor = new BABYLON.Color3(0.5, 0, 0);
-        master.material = mat;
-        master.isVisible = false;
-        return master;
+    _getRandomEnemyType() {
+        const rand = Math.random();
+        let cumulative = 0;
+        for (let type of ENEMY_TYPES) {
+            cumulative += type.prob;
+            if (rand <= cumulative) return type;
+        }
+        return ENEMY_TYPES[0]; // Sécurité
     }
 
     spawnBoss() {
@@ -47,9 +45,8 @@ export class EnemyManager {
         const currentBossIndex = Math.min(this.bossIndex, arenaBosses.length - 1);
         const baseBossData = arenaBosses[currentBossIndex];
 
-        console.log(`⚠️ SPAWN BOSS: ${baseBossData.name} (Loop: ${this.loopCount}) ⚠️`);
-
-        const bossMesh = this.masterMesh.clone("BOSS_" + baseBossData.name);
+        // On utilise l'asset du tank comme base pour les boss (car il est gros)
+        const bossMesh = this.assetManager.meshes.enemy_tank.clone("BOSS_" + baseBossData.name);
         bossMesh.isVisible = true;
 
         bossMesh.position = this.player.mesh.position.clone();
@@ -63,20 +60,16 @@ export class EnemyManager {
         bossMat.emissiveColor = baseBossData.color.scale(0.4);
         bossMesh.material = bossMat;
 
-        // --- SCALING ENDLESS ---
-        // Chaque boucle augmente les PV et les dégâts du boss de 100%
         const scaleMult = 1 + (this.loopCount * 1.0);
-        const actualHp = baseBossData.hp * scaleMult;
-        const actualDamage = baseBossData.damage * scaleMult;
-
         bossMesh.uniqueId = "BOSS_" + Date.now();
-        bossMesh.hp = actualHp;
-        bossMesh.maxHp = actualHp;
-        bossMesh.damage = actualDamage;
+        bossMesh.hp = baseBossData.hp * scaleMult;
+        bossMesh.maxHp = baseBossData.hp * scaleMult;
+        bossMesh.damage = baseBossData.damage * scaleMult;
         bossMesh.speed = baseBossData.speed;
         bossMesh.isBoss = true;
         bossMesh.name = baseBossData.name + (this.loopCount > 0 ? ` +${this.loopCount}` : "");
         bossMesh.xpValue = baseBossData.dropXp * scaleMult;
+        bossMesh.baseScale = baseBossData.scale;
 
         this.shadowGenerator.addShadowCaster(bossMesh);
         this.enemies.push(bossMesh);
@@ -84,21 +77,31 @@ export class EnemyManager {
     }
 
     spawn(gameTime) {
-        const enemy = this.masterMesh.createInstance("e_" + Date.now() + Math.random());
+        const typeConfig = this._getRandomEnemyType();
+        const masterMesh = this.assetManager.meshes[typeConfig.id];
+
+        const enemy = masterMesh.createInstance("e_" + Date.now() + Math.random());
         enemy.uniqueId = Date.now() + "_" + Math.random();
 
         const angle = Math.random() * Math.PI * 2;
         const radius = 35;
         enemy.position.x = this.player.mesh.position.x + Math.cos(angle) * radius;
         enemy.position.z = this.player.mesh.position.z + Math.sin(angle) * radius;
-        enemy.position.y = 0.6;
+        enemy.position.y = typeConfig.scale / 2;
 
-        // Les ennemis normaux continuent de scaler à l'infini grâce à gameTime
+        // Application des stats selon le type
         const scaledHp = 10 + Math.floor(gameTime / 10);
-        enemy.maxHp = scaledHp;
-        enemy.hp = scaledHp;
-        enemy.speed = 0.12;
-        enemy.xpValue = 10;
+        enemy.maxHp = scaledHp * typeConfig.hpMult;
+        enemy.hp = enemy.maxHp;
+
+        enemy.speedMult = typeConfig.speedMult;
+        enemy.isShooter = typeConfig.isShooter;
+        enemy.range = typeConfig.range || 0;
+        enemy.fireRate = typeConfig.fireRate || 90;
+        enemy.fireTimer = 0;
+        enemy.baseScale = typeConfig.scale;
+
+        enemy.xpValue = 10 * typeConfig.hpMult; // Un tank donne plus d'XP !
 
         this.shadowGenerator.addShadowCaster(enemy);
         this.enemies.push(enemy);
@@ -107,71 +110,105 @@ export class EnemyManager {
     update(gameTime) {
         this._handleSpawns(gameTime);
         this._updateEnemies(gameTime);
+        this._updateEnemyProjectiles(); // Nouveau !
     }
-
-    // --- NOUVELLES SOUS-MÉTHODES ---
 
     _handleSpawns(gameTime) {
-        // 1. Apparition du Boss
         if (gameTime >= this.nextBossTime && !this.bossSpawned) {
             this.spawnBoss();
-            this.nextBossTime += 30; // Prévu pour le boss suivant
+            this.nextBossTime += 300;
         }
 
-        // 2. Apparition des ennemis normaux (uniquement si le boss n'est pas là)
         if (!this.bossSpawned) {
-            this._spawnNormalEnemies(gameTime);
-        }
-    }
-
-    _spawnNormalEnemies(gameTime) {
-        let spawnInterval = Math.max(8, 60 - (gameTime * 0.2));
-        this.spawnTimer++;
-
-        if (this.spawnTimer >= spawnInterval) {
-            let batchSize = 1;
-            if (gameTime > 120) batchSize = 2;
-            if (gameTime > 240) batchSize = 3;
-
-            for (let k = 0; k < batchSize; k++) {
-                this.spawn(gameTime);
+            let spawnInterval = Math.max(8, 60 - (gameTime * 0.2));
+            this.spawnTimer++;
+            if (this.spawnTimer >= spawnInterval) {
+                let batchSize = 1;
+                if (gameTime > 120) batchSize = 2;
+                if (gameTime > 240) batchSize = 3;
+                for(let k = 0; k < batchSize; k++) this.spawn(gameTime);
+                this.spawnTimer = 0;
             }
-            this.spawnTimer = 0;
         }
     }
 
     _updateEnemies(gameTime) {
-        // On parcourt à l'envers car on risque de supprimer des éléments (splice)
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const enemy = this.enemies[i];
-
-            // Calcul de la direction
             const direction = this.player.mesh.position.subtract(enemy.position).normalize();
 
             if (enemy.isBoss) {
-                this._moveBoss(enemy, direction);
+                enemy.lookAt(this.player.mesh.position);
+                enemy.position.addInPlace(direction.scale(enemy.speed));
             } else {
                 this._moveNormalEnemy(enemy, direction, gameTime, i);
             }
         }
     }
 
-    _moveBoss(boss, direction) {
-        boss.lookAt(this.player.mesh.position);
-        boss.position.addInPlace(direction.scale(boss.speed));
-    }
-
     _moveNormalEnemy(enemy, direction, gameTime, index) {
         const speedBonus = Math.min(0.06, gameTime * 0.0001);
-        const currentSpeed = 0.12 + speedBonus;
+        const baseSpeed = 0.12 + speedBonus;
+        const currentSpeed = baseSpeed * enemy.speedMult;
 
-        enemy.rotation.y += 0.05;
-        enemy.position.addInPlace(direction.scale(currentSpeed));
+        // Ils regardent tous le joueur (plus naturel pour les tirs)
+        enemy.lookAt(this.player.mesh.position);
 
-        // Despawn si trop loin
-        if (BABYLON.Vector3.Distance(this.player.mesh.position, enemy.position) > 70) {
+        const dist = BABYLON.Vector3.Distance(this.player.mesh.position, enemy.position);
+
+        // Comportement de l'artilleur
+        if (enemy.isShooter && dist < enemy.range) {
+            enemy.fireTimer++;
+            if (enemy.fireTimer >= enemy.fireRate) {
+                this._fireEnemyProjectile(enemy);
+                enemy.fireTimer = 0;
+            }
+        }
+        // Comportement de déplacement standard
+        else {
+            enemy.position.addInPlace(direction.scale(currentSpeed));
+        }
+
+        if (dist > 70) {
             enemy.dispose();
             this.enemies.splice(index, 1);
+        }
+    }
+
+    _fireEnemyProjectile(enemy) {
+        const proj = this.assetManager.meshes.enemy_proj.createInstance("ep");
+        proj.position = enemy.position.clone();
+        proj.position.y = 1;
+
+        // Calcule la direction vers le joueur
+        const dir = this.player.mesh.position.subtract(enemy.position).normalize();
+
+        this.enemyProjectiles.push({
+            mesh: proj,
+            dir: dir,
+            speed: 0.25,
+            life: 120 // Disparaît après environ 2 secondes
+        });
+    }
+
+    _updateEnemyProjectiles() {
+        for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
+            const p = this.enemyProjectiles[i];
+            p.mesh.position.addInPlace(p.dir.scale(p.speed));
+            p.life--;
+
+            // Collision avec le joueur (10 dégâts fixes pour l'instant)
+            if (BABYLON.Vector3.DistanceSquared(p.mesh.position, this.player.mesh.position) < 2) {
+                this.player.takeDamage(10);
+                p.mesh.dispose();
+                this.enemyProjectiles.splice(i, 1);
+                continue;
+            }
+
+            if (p.life <= 0) {
+                p.mesh.dispose();
+                this.enemyProjectiles.splice(i, 1);
+            }
         }
     }
 
@@ -188,31 +225,31 @@ export class EnemyManager {
                 setTimeout(() => { if(enemy && enemy.material) enemy.material.emissiveColor = oldColor; }, 50);
             }
         } else {
-            enemy.scaling = new BABYLON.Vector3(1.5, 1.5, 1.5);
-            setTimeout(() => { if(enemy) enemy.scaling = new BABYLON.Vector3(1, 1, 1); }, 100);
+            // Effet d'impact dynamique adapté à la taille de base (baseScale)
+            enemy.scaling = new BABYLON.Vector3(enemy.baseScale * 1.3, enemy.baseScale * 1.3, enemy.baseScale * 1.3);
+            setTimeout(() => {
+                if(enemy) enemy.scaling = new BABYLON.Vector3(enemy.baseScale, enemy.baseScale, enemy.baseScale);
+            }, 100);
         }
 
         if (enemy.hp <= 0) {
             if (enemy.isBoss) {
-                const defeatedIndex = this.bossIndex; // On sauvegarde l'index du boss tué
+                const defeatedIndex = this.bossIndex;
                 this.activeBoss = null;
                 this.bossSpawned = false;
                 this.bossIndex++;
 
-                // Si on a tué le 3ème boss en Endless, on boucle !
                 if (this.gameMode === "ENDLESS" && this.bossIndex > 2) {
                     this.bossIndex = 0;
                     this.loopCount++;
                 }
 
-                // On prévient le main.js
                 if (this.onBossDefeated) this.onBossDefeated(defeatedIndex);
             }
 
             this.removeEnemy(index);
             return true;
         }
-
         return false;
     }
 
