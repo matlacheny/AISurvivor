@@ -145,6 +145,10 @@ export class EnemyManager {
             } else {
                 this._moveNormalEnemy(enemy, direction, gameTime, i);
             }
+            if (enemy._scaleTimer > 0) {
+                enemy._scaleTimer--;
+                if (enemy._scaleTimer === 0) enemy.scaling.setAll(enemy.baseScale);
+            }
         }
     }
 
@@ -221,9 +225,7 @@ export class EnemyManager {
             // Effet d'impact : scale-up bref
             const s = enemy.baseScale;
             enemy.scaling = new BABYLON.Vector3(s * 1.3, s * 1.3, s * 1.3);
-            setTimeout(() => {
-                if (enemy) enemy.scaling = new BABYLON.Vector3(s, s, s);
-            }, 100);
+            enemy._scaleTimer = 6;
         }
 
         if (enemy.hp <= 0) {
