@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  game:
+    image: node:20-alpine
+    container_name: ai_survivor_dev
+    working_dir: /app
+    
+    # Expose le port de Vite vers ta machine locale
+    ports:
+      - "5173:5173"
+      
+    # On monte ton code source dans le conteneur, mais on isole le dossier node_modules
+    volumes:
+      - .:/app
+      - /app/node_modules
+      
+    environment:
+      # Oblige Vite à scruter les fichiers plus agressivement (nécessaire sous Windows/Mac avec Docker pour le Hot Reload)
+      - CHOKIDAR_USEPOLLING=true
+      
+    # Le conteneur va installer les dépendances s'il en manque, puis lancer Vite.
+    command: sh -c "npm install && npm run dev -- --host"
