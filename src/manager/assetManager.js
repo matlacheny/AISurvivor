@@ -18,7 +18,7 @@ export class AssetManager {
         this.meshes = {};
         this.isReady = false;
     }
-
+/*
     async _loadGLB(masterName, folder, fileName) {
         const result = await BABYLON.SceneLoader.ImportMeshAsync("", `/models/${folder}/`, fileName, this.scene);
 
@@ -31,7 +31,33 @@ export class AssetManager {
         master.setEnabled(false);
         return master;
     }
+*/
+    async _loadGLB(masterName, folder, fileName) {
+        const result = await BABYLON.SceneLoader.ImportMeshAsync("", `/models/${folder}/`, fileName, this.scene);
 
+        const root = result.meshes[0];
+
+        // ─── SIMPLIFICATION LOW POLY ───
+        result.meshes.forEach(mesh => {
+            if (!(mesh instanceof BABYLON.Mesh)) return;
+
+            mesh.simplify(
+                [{ quality: 0.2, distance: 0 }], // quality : 0.0 (max simplifié) → 1.0 (original)
+                false, // async
+                BABYLON.SimplificationType.QUADRATIC,
+                () => console.log(`[AssetManager] ✓ simplifié : ${mesh.name}`)
+            );
+        });
+        // ──────────────────────────────
+
+        const master = new BABYLON.TransformNode(masterName, this.scene);
+        root.parent = master;
+        root.position = BABYLON.Vector3.Zero();
+        root.rotation = BABYLON.Vector3.Zero();
+        master.position = BABYLON.Vector3.Zero();
+        master.setEnabled(false);
+        return master;
+    }
     cloneEnemy(typeId, uniqueName) {
         const master = this.meshes[typeId];
         if (!master) throw new Error(`[AssetManager] Asset introuvable : ${typeId}`);
