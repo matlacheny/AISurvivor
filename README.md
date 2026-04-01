@@ -1,7 +1,7 @@
 # AI Survivor
 
-Projet de Games On Web 2026 (Mattéo Lacheny, Thibault Labarthe)
-Un jeu de survie en arène 3D inspiré du célèbre *Vampire Survivors*, développé en JavaScript natif avec **Babylon.js** et propulsé par **Vite**. Survivez à des hordes d'ennemis, affrontez des boss redoutables, et créez le build ultime pour triompher !
+* Projet de Games On Web 2026 (Mattéo Lacheny, Thibault Labarthe)
+* Un jeu de survie en arène 3D inspiré du célèbre *Vampire Survivors*, développé en JavaScript natif avec **Babylon.js** et propulsé par **Vite**. Survivez à des hordes d'ennemis, affrontez des boss redoutables, et créez le build ultime pour triompher !
 
 ## ✨ Fonctionnalités
 
