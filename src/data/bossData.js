@@ -10,7 +10,7 @@ export const BOSSES = {
         },
         { // Boss à 10 minutes
             name: "REINE DES ESSAIMS",
-            hp: 12000, damage: 35, speed: 0.20, scale: 3.5,
+            hp: 12000, damage: 35, speed: 0.2, scale: 3.5,
             color: new BABYLON.Color3(0.8, 0.8, 0), pattern: "dash", dropXp: 3000
         },
         { // Boss à 15 minutes
@@ -48,7 +48,7 @@ export const BOSSES = {
         },
         { // Boss à 10 minutes
             name: "BÊTE DE L'OMBRE",
-            hp: 14000, damage: 60, speed: 0.30, scale: 3.5,
+            hp: 14000, damage: 60, speed: 0.3, scale: 3.5,
             color: new BABYLON.Color3(0.1, 0, 0), pattern: "charge", dropXp: 4000
         },
         { // Boss à 15 minutes

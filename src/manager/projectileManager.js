@@ -1,5 +1,5 @@
 import * as BABYLON from "@babylonjs/core";
-import { WEAPONS, EVOLUTIONS } from './itemsData.js';
+import { WEAPONS, EVOLUTIONS } from '../data/itemsData.js';
 
 export class ProjectileManager {
     constructor(scene, player, enemyManager, xpManager) {
@@ -170,7 +170,7 @@ export class ProjectileManager {
 
         if (isDead) {
             this.xpManager.spawn(p.mesh.position, 10);
-            this.player.stats.kills++;
+            this.player.onEnemyKill();
         }
 
         // Gestion Perforation
