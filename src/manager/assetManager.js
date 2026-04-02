@@ -87,10 +87,14 @@ export class AssetManager {
         const enemyConfigs = [
             // scale : ajuste ici si un modèle GLB est trop grand/petit.
             // La taille finale en jeu = scale_ici × typeConfig.scale (dans enemyData.js)
-            { key: "enemy_standard", folder: "normal-bot",  file: "robot_bad_enemy.glb",                          scale: 1    },
+            /*{ key: "enemy_standard", folder: "normal-bot",  file: "robot_bad_enemy.glb",                          scale: 1    },
             { key: "enemy_fast",     folder: "fast-bot",    file: "cnf_model_a__walker_detection_robot.glb",     scale: 0.01 },
             { key: "enemy_tank",     folder: "tank-bot",    file: "voxel_armored_guard_robot.glb",               scale: 1    },
-            { key: "enemy_shooter",  folder: "shooter-bot", file: "cnf_model_b1__crawler_grenade_launcher.glb",  scale: 1    },
+            { key: "enemy_shooter",  folder: "shooter-bot", file: "cnf_model_b1__crawler_grenade_launcher.glb",  scale: 1    },*/
+            { key: "enemy_standard", folder: "normal-bot",  file: "",                          scale: 1    },
+            { key: "enemy_fast",     folder: "fast-bot",    file: "",     scale: 0.01 },
+            { key: "enemy_tank",     folder: "tank-bot",    file: "",               scale: 1    },
+            { key: "enemy_shooter",  folder: "shooter-bot", file: "",  scale: 1    },
         ];
 
         await Promise.all(enemyConfigs.map(async ({ key, folder, file }) => {
