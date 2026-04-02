@@ -107,9 +107,10 @@ export class UIManager {
     }
 
     update(stats, timeInSeconds, currentHp, maxHp, activeBoss) {
-        // Formatage du temps (MM:SS)
-        const minutes = Math.floor(timeInSeconds / 60).toString().padStart(2, '0');
-        const seconds = Math.floor(timeInSeconds % 60).toString().padStart(2, '0');
+            // Formatage du temps (MM:SS)
+            const minutes = Math.floor(timeInSeconds / 60).toString().padStart(2, '0');
+            const seconds = Math.floor(timeInSeconds % 60).toString().padStart(2, '0');
+            
 
         this.hud.innerHTML = `
             <span style="font-size: 30px;">⏱ ${minutes}:${seconds}</span><br>
