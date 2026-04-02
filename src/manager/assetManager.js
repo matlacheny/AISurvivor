@@ -18,7 +18,7 @@ export class AssetManager {
         this.meshes = {};
         this.isReady = false;
     }
-
+/*
     async _loadGLB(masterName, folder, fileName) {
         const result = await BABYLON.SceneLoader.ImportMeshAsync("", `/models/${folder}/`, fileName, this.scene);
 
@@ -31,7 +31,33 @@ export class AssetManager {
         master.setEnabled(false);
         return master;
     }
+*/
+    async _loadGLB(masterName, folder, fileName) {
+        const result = await BABYLON.SceneLoader.ImportMeshAsync("", `/models/${folder}/`, fileName, this.scene);
 
+        const root = result.meshes[0];
+
+        // ─── SIMPLIFICATION LOW POLY ───
+        result.meshes.forEach(mesh => {
+            if (!(mesh instanceof BABYLON.Mesh)) return;
+
+            mesh.simplify(
+                [{ quality: 0.2, distance: 0 }], // quality : 0.0 (max simplifié) → 1.0 (original)
+                false, // async
+                BABYLON.SimplificationType.QUADRATIC,
+                () => console.log(`[AssetManager] ✓ simplifié : ${mesh.name}`)
+            );
+        });
+        // ──────────────────────────────
+
+        const master = new BABYLON.TransformNode(masterName, this.scene);
+        root.parent = master;
+        root.position = BABYLON.Vector3.Zero();
+        root.rotation = BABYLON.Vector3.Zero();
+        master.position = BABYLON.Vector3.Zero();
+        master.setEnabled(false);
+        return master;
+    }
     cloneEnemy(typeId, uniqueName) {
         const master = this.meshes[typeId];
         if (!master) throw new Error(`[AssetManager] Asset introuvable : ${typeId}`);
@@ -61,8 +87,8 @@ export class AssetManager {
         const enemyConfigs = [
             // scale : ajuste ici si un modèle GLB est trop grand/petit.
             // La taille finale en jeu = scale_ici × typeConfig.scale (dans enemyData.js)
-            { key: "enemy_standard", folder: "normal-bot",  file: "robot_warrior.glb",                          scale: 1    },
-            { key: "enemy_fast",     folder: "fast-bot",    file: "cnf_model_a__walker_detection_robot.glb",     scale: 1 },
+            { key: "enemy_standard", folder: "normal-bot",  file: "robot_bad_enemy.glb",                          scale: 1    },
+            { key: "enemy_fast",     folder: "fast-bot",    file: "cnf_model_a__walker_detection_robot.glb",     scale: 0.01 },
             { key: "enemy_tank",     folder: "tank-bot",    file: "voxel_armored_guard_robot.glb",               scale: 1    },
             { key: "enemy_shooter",  folder: "shooter-bot", file: "cnf_model_b1__crawler_grenade_launcher.glb",  scale: 1    },
         ];
